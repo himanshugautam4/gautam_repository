@@ -1,0 +1,267 @@
+# AWSTemplateFormatVersion: 2010-09-09
+# Description: |
+  
+Parameters:
+  author:
+    Description: Please input your name
+    Type: String
+    Default: gautam
+  
+  envtype:
+    Description: Please select your envType
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+  keypair:
+    Description: Please select your key pair
+    Type: AWS::EC2::KeyPair::KeyName
+
+# Metadata:
+
+# Mappings:
+
+Conditions:
+  ngwCreate: !Equals [!Ref envtype, prod]
+
+  
+Resources:
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+       - Key: Name
+         Value: !Sub ${author}-vpc
+           
+  PubmySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: "ap-northeast-1a"
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-subnet-pub-1a
+  
+  PrimySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: "ap-northeast-1a"
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-subnet-pri-1a
+
+  PubmySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: "ap-northeast-1c"
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-subnet-pub-1c
+
+  PrimySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: "ap-northeast-1c"
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-subnet-pri-1c
+
+  myInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-igw-cf-01
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+       Ref: myVPC
+      InternetGatewayId:
+       Ref: myInternetGateway
+
+  myPubRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: myVPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-pub-rtb-cf-01
+
+  myPriRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: myVPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-pri-rtb-cf-01
+
+  myPriRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: myVPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${author}-pri-rtb-cf-02
+
+  myPubSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PubmySubnet1
+      RouteTableId:
+        Ref: myPubRouteTable1
+
+  myPriSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrimySubnet1
+      RouteTableId:
+        Ref: myPriRouteTable1
+
+  myPubSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PubmySubnet2
+      RouteTableId:
+        Ref: myPubRouteTable1
+
+  myPriSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrimySubnet2
+      RouteTableId:
+        Ref: myPriRouteTable2
+
+  myRoute:
+    Type: AWS::EC2::Route
+    # DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId:
+        Ref: myPubRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: myInternetGateway
+
+  NATGateway:
+    Condition: ngwCreate
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PubmySubnet2
+      Tags:
+      - Key: Name
+        Value: gautam-natgw-cf
+  NATGatewayEIP:
+    Condition: ngwCreate
+    Type: AWS::EC2::EIP
+    Properties:
+        Domain: myVPC
+  RouteNATGateway:
+    Condition: ngwCreate
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myPriRouteTable1
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NATGateway
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${author}-pub-sg
+      GroupDescription: for bastion server
+      VpcId: !Ref myVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+            
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${author}-web-sg
+      GroupDescription: for web server
+      VpcId: !Ref myVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  BastionEc2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub ${author}-ec2-server
+      ImageId: ami-08ce76bae392de7dc
+      KeyName: 
+        Ref: keypair
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: 
+            - Ref: BastionSecurityGroup
+          SubnetId: 
+            Ref: PubmySubnet1
+
+  webEc2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub ${author}-web-ec2-server
+      ImageId: ami-08ce76bae392de7dc
+      KeyName: 
+        Ref: keypair
+          # GroupSet: 
+          #   - Ref: BastionSecurityGroup
+      SecurityGroupIds:
+        - Ref: WebSecurityGroup
+      SubnetId: 
+        Ref: PrimySubnet1
+# Transform:
+
+# Outputs:
