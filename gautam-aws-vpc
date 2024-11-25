@@ -263,7 +263,7 @@ Resources:
       SubnetId: 
         Ref: PrimySubnet1
 
-    myRouteTable:
+  myRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:  
