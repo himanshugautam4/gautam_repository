@@ -19,6 +19,7 @@ Parameters:
   keypair:
     Description: Please select your key pair
     Type: AWS::EC2::KeyPair::KeyName
+    Default: gautam_keypair
 
 # Metadata:
 
