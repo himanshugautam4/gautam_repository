@@ -262,6 +262,15 @@ Resources:
         - Ref: WebSecurityGroup
       SubnetId: 
         Ref: PrimySubnet1
+
+    myRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: myVPC
+      Tags:
+      - Key: stack
+        Value: gautam-rtb
 # Transform:
 
 # Outputs:
